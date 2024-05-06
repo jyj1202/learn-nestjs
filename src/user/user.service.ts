@@ -13,11 +13,10 @@ export class UserService {
   ) {}
 
   create(createUserDto: CreateUserDto) {
-    const data = new User()
-    return 'This action adds a new user';
+    return this.userRepository.save(createUserDto)
   }
 
-  findAll(): Promise<User[]> {
+  findAll() {
     return this.userRepository.find();
   }
 
@@ -26,10 +25,10 @@ export class UserService {
   }
 
   update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+    return this.userRepository.update(id, updateUserDto)
   }
 
-  async remove(id: string): Promise<void> {
-    await this.userRepository.delete(id);
+  async remove(id: string) {
+    return await this.userRepository.delete(id);
   }
 }

@@ -24,7 +24,7 @@ export class User {
     enum: UserRole,
     default: [UserRole.GHOST]
   })
-  role: UserRole;
+  role: UserRole[];
 
   @CreateDateColumn({ type: 'timestamp' })
   createTime: Date;
