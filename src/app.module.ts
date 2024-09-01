@@ -4,6 +4,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './user/user.module';
+import { FakeGptModule } from './fake-gpt/fake-gpt.module';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { UserModule } from './user/user.module';
       synchronize: true,
       autoLoadEntities: true,
     }),
-    UserModule
+    UserModule,
+    FakeGptModule
   ],
   controllers: [AppController],
   providers: [AppService],
