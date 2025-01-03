@@ -1,28 +1,34 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 export enum UserRole {
-  ADMIN = "admin",
-  EDITOR = "editor",
-  GHOST = "ghost",
+  ADMIN = 'admin',
+  EDITOR = 'editor',
+  GHOST = 'ghost',
 }
 
 @Entity()
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
-  
+
   @Column()
-  username:string;
+  username: string;
 
   @Column({
-    select: false
+    select: false,
   })
   password: string;
 
   @Column({
     type: 'set',
     enum: UserRole,
-    default: [UserRole.GHOST]
+    default: [UserRole.GHOST],
   })
   role: UserRole[];
 
@@ -31,5 +37,4 @@ export class User {
 
   @UpdateDateColumn({ type: 'timestamp' })
   updateTime: Date;
-
 }
