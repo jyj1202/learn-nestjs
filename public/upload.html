@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>文件上传</title>
+    <meta charset="UTF-8">
+    <style>
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease-in-out;
+        }
+        .progress-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>普通文件上传</h2>
+        <input type="file" id="fileInput">
+        <button onclick="uploadFile()">上传</button>
+        <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="progress-info" id="progressInfo"></div>
+    </div>
+
+    <script>
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+        }
+
+        function formatSpeed(bytesPerSecond) {
+            return formatSize(bytesPerSecond) + '/s';
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const progressBar = document.getElementById('progressBar');
+            const progressInfo = document.getElementById('progressInfo');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('请选择文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const startTime = Date.now();
+                const xhr = new XMLHttpRequest();
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const percent = (event.loaded / event.total) * 100;
+                        const duration = (Date.now() - startTime) / 1000;
+                        const speed = event.loaded / duration;
+                        
+                        progressBar.style.width = percent + '%';
+                        progressInfo.innerHTML = `
+                            已上传: ${formatSize(event.loaded)} / ${formatSize(event.total)}<br>
+                            进度: ${percent.toFixed(2)}%<br>
+                            速度: ${formatSpeed(speed)}
+                        `;
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        alert('上传成功！');
+                    } else {
+                        alert('上传失败：' + xhr.statusText);
+                    }
+                };
+
+                xhr.onerror = () => {
+                    alert('上传失败：网络错误');
+                };
+
+                xhr.open('POST', '/file/upload', true);
+                xhr.send(formData);
+            } catch (error) {
+                alert('上传失败：' + error.message);
+            }
+        }
+    </script>
+</body>
+</html> 

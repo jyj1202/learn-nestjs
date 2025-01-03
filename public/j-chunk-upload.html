@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>chunk upload</title>
+</head>
+<body>
+  <input type="file" id="fileInput" accept=".mp4">
+  <label for="fileSize">大小：</label>
+  <output id="fileSize">0</output>
+
+  
+  <div id="progressBar"></div>
+  <div id="progressInfo"></div>
+  <div id="chunkProgress"></div>
+
+  <button id="uploadButton">上传</button>
+
+
+  <input type="file" id="fileInput2" accept=".mp4">
+
+
+  <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
+  <script src="./j-chunk-upload.js" type="module"></script>
+
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>文件下载</title>
+    <meta charset="UTF-8">
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .file-list {
+            margin-top: 20px;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .file-info {
+            flex: 1;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 5px;
+            display: none;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease-in-out;
+        }
+        .progress-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>文件下载列表</h2>
+        <div class="file-list" id="fileList"></div>
+    </div>
+
+    <script>
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+        }
+
+        function formatSpeed(bytesPerSecond) {
+            return formatSize(bytesPerSecond) + '/s';
+        }
+
+        function formatDate(date) {
+            return new Date(date).toLocaleString();
+        }
+
+        async function loadFileList() {
+            try {
+                const response = await fetch('/file/files');
+                const files = await response.json();
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = '';
+
+                files.forEach(file => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <div class="file-info">
+                            <div>${file.filename}</div>
+                            <div style="font-size: 12px; color: #666;">
+                                大小: ${formatSize(file.size)} | 
+                                创建时间: ${formatDate(file.createTime)}
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar"></div>
+                            </div>
+                            <div class="progress-info"></div>
+                        </div>
+                        <button onclick="downloadFile('${file.filename}', ${file.size}, this)">下载</button>
+                    `;
+                    fileList.appendChild(fileItem);
+                });
+            } catch (error) {
+                console.error('加载文件列表失败:', error);
+            }
+        }
+
+        class DownloadManager {
+            constructor(filename, fileSize, progressBar, progressInfo) {
+                this.filename = filename;
+                this.fileSize = fileSize;
+                this.progressBar = progressBar;
+                this.progressInfo = progressInfo;
+                this.receivedBytes = 0;
+                this.chunks = [];
+                this.startTime = Date.now();
+                this.aborted = false;
+                this.downloadedRanges = []; // 记录已下载的区间
+            }
+
+            // 合并重叠的区间
+            mergeRanges() {
+                this.downloadedRanges.sort((a, b) => a[0] - b[0]);
+                const merged = [];
+                let current = this.downloadedRanges[0];
+
+                for (let i = 1; i < this.downloadedRanges.length; i++) {
+                    const [start, end] = this.downloadedRanges[i];
+                    if (current[1] >= start - 1) {
+                        current[1] = Math.max(current[1], end);
+                    } else {
+                        merged.push(current);
+                        current = [start, end];
+                    }
+                }
+                merged.push(current);
+                this.downloadedRanges = merged;
+            }
+
+            // 获取下一个需要下载的区间
+            getNextRange() {
+                if (this.downloadedRanges.length === 0) {
+                    return [0, this.fileSize - 1];
+                }
+
+                this.mergeRanges();
+                
+                // 查找缺失的区间
+                if (this.downloadedRanges[0][0] > 0) {
+                    return [0, this.downloadedRanges[0][0] - 1];
+                }
+
+                for (let i = 0; i < this.downloadedRanges.length - 1; i++) {
+                    if (this.downloadedRanges[i][1] + 1 < this.downloadedRanges[i + 1][0]) {
+                        return [this.downloadedRanges[i][1] + 1, this.downloadedRanges[i + 1][0] - 1];
+                    }
+                }
+
+                const lastEnd = this.downloadedRanges[this.downloadedRanges.length - 1][1];
+                if (lastEnd < this.fileSize - 1) {
+                    return [lastEnd + 1, this.fileSize - 1];
+                }
+
+                return null; // 所有区间都已下载
+            }
+
+            updateProgress() {
+                const percent = (this.receivedBytes / this.fileSize) * 100;
+                const duration = (Date.now() - this.startTime) / 1000;
+                const speed = this.receivedBytes / duration;
+
+                this.progressBar.style.width = `${percent}%`;
+                this.progressInfo.innerHTML = `
+                    已下载: ${formatSize(this.receivedBytes)} / ${formatSize(this.fileSize)}<br>
+                    进度: ${percent.toFixed(2)}%<br>
+                    速度: ${formatSpeed(speed)}
+                `;
+            }
+
+            async start() {
+                while (!this.aborted) {
+                    const range = this.getNextRange();
+                    if (!range) {
+                        // 下载完成
+                        await this.finish();
+                        break;
+                    }
+
+                    try {
+                        await this.downloadRange(range[0], range[1]);
+                    } catch (error) {
+                        if (!this.aborted) {
+                            console.error('下载出错，尝试继续...', error);
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // 失败后等待1秒继续
+                        }
+                    }
+                }
+            }
+
+            async downloadRange(start, end) {
+                const response = await fetch(`/file/download/${this.filename}`, {
+                    headers: {
+                        'Range': `bytes=${start}-${end}`
+                    }
+                });
+
+                if (!response.ok && response.status !== 206) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                let rangeReceived = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    rangeReceived += value.length;
+                    this.receivedBytes += value.length;
+                    this.chunks.push({
+                        data: value,
+                        start: start + rangeReceived - value.length
+                    });
+
+                    this.updateProgress();
+                }
+
+                this.downloadedRanges.push([start, end]);
+            }
+
+            async finish() {
+                // 按照正确顺序合并数据
+                this.chunks.sort((a, b) => a.start - b.start);
+                const orderedChunks = this.chunks.map(chunk => chunk.data);
+                const blob = new Blob(orderedChunks);
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = this.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                this.progressInfo.innerHTML = '下载完成！';
+            }
+
+            abort() {
+                this.aborted = true;
+            }
+        }
+
+        async function downloadFile(filename, fileSize, button) {
+            const fileItem = button.parentElement;
+            const progress = fileItem.querySelector('.progress');
+            const progressBar = fileItem.querySelector('.progress-bar');
+            const progressInfo = fileItem.querySelector('.progress-info');
+            progress.style.display = 'block';
+
+            const downloadManager = new DownloadManager(
+                filename,
+                fileSize,
+                progressBar,
+                progressInfo
+            );
+
+            // 添加暂停/继续按钮
+            const pauseButton = document.createElement('button');
+            pauseButton.textContent = '暂停';
+            let isPaused = false;
+            
+            pauseButton.onclick = () => {
+                if (isPaused) {
+                    downloadManager.start();
+                    pauseButton.textContent = '暂停';
+                } else {
+                    downloadManager.abort();
+                    pauseButton.textContent = '继续';
+                }
+                isPaused = !isPaused;
+            };
+
+            button.parentElement.appendChild(pauseButton);
+            
+            try {
+                await downloadManager.start();
+            } catch (error) {
+                progressInfo.innerHTML = '下载失败：' + error.message;
+                console.error('下载失败:', error);
+            }
+        }
+
+        // 页面加载时获取文件列表
+        loadFileList();
+    </script>
+</body>
+</html> 
