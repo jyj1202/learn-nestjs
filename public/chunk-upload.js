@@ -1,6 +1,6 @@
 export class ChunkUpload {
   tasks = [];
-  constructor(file, chunkSize=5*1024*1024, concurrency=3) {
+  constructor(file, chunkSize = 5 * 1024 * 1024, concurrency = 3) {
     this.file = file;
     this.chunkSize = chunkSize;
     this.concurrency = concurrency;
@@ -13,8 +13,8 @@ export class ChunkUpload {
     this.fileHash = fileHash;
     console.timeEnd('calculateHash');
     console.log(fileHash);
-    
-    const tasks = this.chunks.map(c => (() => this.uploadChunk(c)));
+
+    const tasks = this.chunks.map((c) => () => this.uploadChunk(c));
     const concurrentTask = new ConcurrentTask(tasks, this.concurrency);
     const res = await concurrentTask.runAll();
     console.log(res);
@@ -31,7 +31,7 @@ export class ChunkUpload {
     formData.append('chunkSize', size);
     const res = await fetch('http://localhost:3000/file/chunk', {
       method: 'POST',
-      body: formData
+      body: formData,
     });
     return res;
   }
@@ -60,10 +60,10 @@ export class ChunkUpload {
         reader.onload = (e) => {
           spark.append(e.target.result);
           read(i + 1);
-        }
-      } 
+        };
+      }
       read(0);
-    })
+    });
   }
 }
 
@@ -85,7 +85,7 @@ class ConcurrentTask {
     this.finishNum = 0;
     this.result = [];
   }
-  
+
   runAll() {
     return new Promise((resolve) => {
       this.resolve = resolve;
@@ -114,7 +114,6 @@ class ConcurrentTask {
       } else if (this.runningNum < this.tasks.length) {
         this.run();
       }
-
     }
   }
 }
